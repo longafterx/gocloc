@@ -18,6 +18,7 @@ type CmdOptions struct {
 	SortTag        string
 	OutputType     string
 	ExcludeExt     string
+	Exclude        []string
 	IncludeLang    string
 	Match          string
 	NotMatch       string
@@ -63,7 +64,7 @@ func newRootCommand() *cobra.Command {
   gocloc src tests
 
   # Exclude dependency and build directories by name
-  gocloc --not-match-d='(^|[/\\])(dist|node_modules|target)([/\\]|$)' .
+  gocloc --exclude '{dist,node_modules,target}/' .
 
   # Count only Go and Python files
   gocloc -l Go,Python .
@@ -154,6 +155,12 @@ Examples:
 		"",
 		"exclude file name extensions (separated commas)",
 	)
+	flags.StringArrayVar(
+		&opts.Exclude,
+		"exclude",
+		[]string{},
+		"exclude files or directories matching a glob (repeatable; trailing / matches directories only)",
+	)
 	flags.StringVarP(
 		&opts.IncludeLang,
 		"include-lang",
@@ -177,13 +184,13 @@ Examples:
 		&opts.MatchDir,
 		"match-d",
 		"",
-		"include dir name (regex)",
+		"include directory paths matching a regex (substring match)",
 	)
 	flags.StringVar(
 		&opts.NotMatchDir,
 		"not-match-d",
 		"",
-		"exclude dir name (regex)",
+		"exclude directory paths matching a regex (substring match)",
 	)
 	flags.BoolVar(
 		&opts.Fullpath,
@@ -271,6 +278,7 @@ func runAnalysis(paths []string, opts CmdOptions, analysisOpts *gocloc.Options, 
 		return fmt.Errorf("`--sort files` option cannot be used in conjunction with the `--by-file` option")
 	}
 	analysisOpts.ExcludeExts = strings.Split(opts.ExcludeExt, ",")
+	analysisOpts.Exclude = opts.Exclude
 	analysisOpts.IncludeLangs = strings.Split(opts.IncludeLang, ",")
 	analysisOpts.Match = opts.Match
 	analysisOpts.NotMatch = opts.NotMatch
@@ -285,7 +293,8 @@ func runAnalysis(paths []string, opts CmdOptions, analysisOpts *gocloc.Options, 
 		var optionErr *gocloc.OptionError
 		if errors.As(err, &optionErr) {
 			flag := map[string]string{
-				"Match": "match", "NotMatch": "not-match",
+				"Exclude": "exclude",
+				"Match":   "match", "NotMatch": "not-match",
 				"MatchDir": "match-d", "NotMatchDir": "not-match-d",
 			}[optionErr.Field]
 			if flag != "" {

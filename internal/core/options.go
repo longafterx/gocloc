@@ -27,6 +27,12 @@ type Options struct {
 	// Unknown names are ignored, matching the CLI. If no recognized names remain,
 	// all languages are included, subject to other filters.
 	IncludeLangs []string
+	// Exclude lists case-sensitive globs for Analyze. After removing a trailing
+	// slash, unanchored patterns without / match names at any depth; others match
+	// paths relative to each input root. A leading slash anchors to that root,
+	// and a trailing slash restricts matching to directories. Supports ** and
+	// {a,b}; Fullpath has no effect. See README for scan-root and escape semantics.
+	Exclude []string
 
 	// Match and NotMatch are inclusion and exclusion regexes for file base names,
 	// or full paths when Fullpath is true. Empty patterns disable the filter.
@@ -90,6 +96,7 @@ func (opts *Options) prepareWithExts(languages *DefinedLanguages, exts map[strin
 		workers = min(runtime.GOMAXPROCS(0), MaxWorkers)
 	}
 	prepared := &ClocOptions{
+		Exclude:        append([]string{}, opts.Exclude...),
 		Workers:        workers,
 		SkipDuplicated: !opts.Dedup,
 		ExcludeExts:    make(map[string]struct{}, len(opts.ExcludeExts)),

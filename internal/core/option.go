@@ -21,11 +21,14 @@ type ClocOptions struct {
 	SkipDuplicated bool
 	ExcludeExts    map[string]struct{}
 	IncludeLangs   map[string]struct{}
-	ReNotMatch     *regexp.Regexp
-	ReMatch        *regexp.Regexp
-	ReNotMatchDir  *regexp.Regexp
-	ReMatchDir     *regexp.Regexp
-	Fullpath       bool
+	// Exclude configures glob exclusions for Processor.Analyze, with the same
+	// semantics as Options.Exclude. AnalyzeFile and AnalyzeReader do not apply it.
+	Exclude       []string
+	ReNotMatch    *regexp.Regexp
+	ReMatch       *regexp.Regexp
+	ReNotMatchDir *regexp.Regexp
+	ReMatchDir    *regexp.Regexp
+	Fullpath      bool
 
 	// Workers limits concurrent file analysis and concurrent callback execution.
 	// Values <= 1 use one worker; values above MaxWorkers are capped.
@@ -38,6 +41,7 @@ type ClocOptions struct {
 	diagnostics *diagnosticSink
 	exts        map[string]string
 	extsSet     bool
+	excluder    *pathExcluder
 
 	// OnCode is triggered for each line of code.
 	// Processor.Analyze invokes callbacks in workers, never guaranteeing the

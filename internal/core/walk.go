@@ -82,6 +82,18 @@ func walkCandidateFiles(root string, opts *ClocOptions, visit func(string) error
 			opts.warn(err)
 			return nil
 		}
+		if opts.excluder != nil {
+			excluded, err := opts.excluder.excludedEntry(root, path, entry)
+			if err != nil {
+				return err
+			}
+			if excluded {
+				if entry.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+		}
 		if !vcsInRoot && isVCSDir(path) {
 			if entry.IsDir() {
 				return filepath.SkipDir

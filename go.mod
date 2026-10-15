@@ -3,6 +3,7 @@ module github.com/rustyllh/gocloc
 go 1.23
 
 require (
+	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/go-enry/go-enry/v2 v2.9.6
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v1.10.2

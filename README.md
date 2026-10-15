@@ -233,7 +233,7 @@ gocloc .
 gocloc src tests
 
 # Exclude dependency and build directories
-gocloc --not-match-d='(^|[/\\])(dist|node_modules|target)([/\\]|$)' .
+gocloc --exclude '{dist,node_modules,target}/' .
 
 # Filter languages or exclude extensions
 gocloc -l Go,Python .
@@ -257,7 +257,35 @@ Workers are selected automatically; use `-w 1` through `-w 64` to override.
 `-o` supports `default`, `json`, `markdown`, `cloc-xml`, and `sloccount`.
 Short and long options can be mixed; see `gocloc -h` for the full list.
 
-`--not-match-d` uses a regular expression against directory paths, not a glob.
+Use repeatable `--exclude` flags to exclude files or directories with globs. Any matching rule excludes the entry:
+
+```sh
+gocloc --exclude 'target/' --exclude '*.min.js' .
+gocloc --exclude 'src/generated/' --exclude '**/vendor/' .
+```
+
+| Pattern | Meaning |
+| --- | --- |
+| `target/` | A directory named exactly target at any depth, including its contents; keeps gcc.target |
+| `{dist,node_modules,target}/` | Any of these three complete directory names at any depth |
+| `*.min.js` | A matching file or directory name at any depth |
+| `/target/` | A target directory directly inside each scan root |
+| `src/generated/` | This exact directory path relative to each scan root |
+| `**/generated/` | A generated directory at any depth, including directly inside the root |
+
+Quote patterns to prevent shell expansion. Matching is case-sensitive: `*` does not cross directories,
+while `**` matches zero or more directory levels. A trailing `/` restricts a rule to directories;
+without it, files can also match. Matching directories are pruned before visiting their contents.
+Each input has its own matching root. Unanchored name rules also check the input directory's own name.
+Explicit file inputs use their parent directory as the matching root and check that parent's name rules too.
+Ancestors outside the matching root are ignored; `--fullpath` has no effect on globs.
+Use `/` in patterns on every platform; backslashes escape glob characters. Empty or invalid patterns fail before scanning.
+Glob exclusions take precedence over existing inclusion filters. `!` does not re-include entries,
+and this option does not automatically read `.gitignore` files.
+
+`--match`, `--not-match`, `--match-d` and `--not-match-d` retain their existing regex behavior.
+Directory regexes search directory paths for substrings; prefer `--exclude` for everyday exclusions.
+`-e/--exclude-ext` continues to filter extensions.
 Keep generated reports outside the scanned tree or explicitly exclude them. `>` overwrites the destination.
 Older releases enabled deduplication by default; use `--dedup` to retain that behavior.
 
@@ -273,13 +301,13 @@ Use the built-in languages without constructing a processor:
 result, err := gocloc.Analyze([]string{"."}, nil)
 ```
 
-Pass lists and regular expressions directly when filtering:
+Pass language lists and glob patterns directly when filtering:
 
 ```go
 result, err := gocloc.Analyze([]string{"src", "tests"}, &gocloc.Options{
     IncludeLangs: []string{"Go", "Python"},
     ExcludeExts:  []string{"txt"},
-    NotMatchDir:  `(^|[/\\])(dist|node_modules|target)([/\\]|$)`,
+    Exclude:      []string{"{dist,node_modules,target}/", "*_test.go"},
     Dedup:        true, // Optional: count identical content only once.
 })
 ```
@@ -290,7 +318,10 @@ one worker; explicit values outside 1–64 are rejected, while zero selects auto
 An empty path list returns an empty result, not a scan of the current directory.
 
 Filters are prepared once per call. Invalid options return `*gocloc.OptionError` before
-scanning. File regexes use base names unless `Fullpath` is true; directory regexes always
+scanning. `Options.Exclude` uses the same glob rules as the CLI; invalid globs report the `Exclude` field.
+The historical `ClocOptions.Exclude` field is also supported by `Processor.Analyze`.
+`AnalyzeFile` and `AnalyzeReader` do not apply path filters.
+File regexes use base names unless `Fullpath` is true; directory regexes always
 use directory paths. Like the CLI, `ExcludeExts` excludes the detected language associated
 with each extension, including aliases. `IncludeLangs` ignores unknown names; if none of
 the supplied names are recognized, no language inclusion filter is applied.

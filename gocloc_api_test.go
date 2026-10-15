@@ -76,6 +76,193 @@ func TestAnalyzeEmptyPaths(t *testing.T) {
 	}
 }
 
+func TestAnalyzeGlobExclusions(t *testing.T) {
+	t.Parallel()
+	dir := writeAPIFixture(t, map[string]string{
+		"main.go":                        "package keep\n",
+		"dist/generated.go":              "package excluded\n",
+		"src/node_modules/lib.go":        "package excluded\n",
+		"src/target/nested/generated.go": "package excluded\n",
+		"gcc.target/keep.go":             "package keep\n",
+		"distribution/keep.go":           "package keep\n",
+		"my-dist/keep.go":                "package keep\n",
+		"src/skip_test.go":               "package excluded\n",
+	})
+	want := []string{"distribution/keep.go", "gcc.target/keep.go", "main.go", "my-dist/keep.go"}
+	for _, count := range []int{1, 4} {
+		t.Run(fmt.Sprintf("workers=%d", count), func(t *testing.T) {
+			patterns := []string{"{dist,node_modules,target}/", "*_test.go"}
+			var calls atomic.Int32
+			opts := &gocloc.Options{
+				Workers: count, Exclude: patterns, Match: `\.go$`, Fullpath: true,
+				OnCode: func(line string) {
+					calls.Add(1)
+					if line != "package keep" {
+						t.Errorf("excluded line reached callback: %q", line)
+					}
+				},
+			}
+			result, err := gocloc.Analyze([]string{dir}, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := apiRelativeFiles(t, dir, result); !reflect.DeepEqual(got, want) {
+				t.Fatalf("files=%q, want %q", got, want)
+			}
+			if calls.Load() != int32(len(want)) || patterns[0] != "{dist,node_modules,target}/" {
+				t.Fatal("excluded callbacks ran or caller patterns changed")
+			}
+			legacy := gocloc.NewClocOptions()
+			legacy.Workers = count
+			legacy.Exclude = patterns
+			legacyResult, err := gocloc.NewProcessor(gocloc.NewDefinedLanguages(), legacy).Analyze([]string{dir})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(result, legacyResult) {
+				t.Fatal("Analyze and Processor disagree on glob exclusions")
+			}
+		})
+	}
+}
+
+func TestAnalyzeGlobRoots(t *testing.T) {
+	t.Parallel()
+	dir := writeAPIFixture(t, map[string]string{
+		"target/generated.go":        "package sample\n",
+		"src/target/generated.go":    "package sample\n",
+		"src/generated/generated.go": "package sample\n",
+		"tests/generated/test.go":    "package sample\n",
+		"src/main.go":                "package sample\n",
+	})
+	for _, tc := range []struct {
+		name    string
+		paths   []string
+		pattern string
+		want    []string
+	}{
+		{
+			name: "anchored directory", paths: []string{dir}, pattern: "/target/",
+			want: []string{"src/generated/generated.go", "src/main.go", "src/target/generated.go", "tests/generated/test.go"},
+		},
+		{
+			name: "independent roots", paths: []string{filepath.Join(dir, "src"), filepath.Join(dir, "tests")},
+			pattern: "/generated/", want: []string{"src/main.go", "src/target/generated.go"},
+		},
+		{
+			name: "root directory name", paths: []string{filepath.Join(dir, "target")},
+			pattern: "target/", want: []string{},
+		},
+		{
+			name: "dot root name", paths: []string{filepath.Join(dir, "target") + string(os.PathSeparator) + "."},
+			pattern: "target/", want: []string{},
+		},
+		{
+			name: "explicit file parent", paths: []string{filepath.Join(dir, "target/generated.go")},
+			pattern: "target/", want: []string{},
+		},
+		{
+			name: "explicit filename", paths: []string{filepath.Join(dir, "src/main.go")},
+			pattern: "/main.go", want: []string{},
+		},
+		{
+			name: "outside ancestors ignored", paths: []string{filepath.Join(dir, "src/target")},
+			pattern: "src/", want: []string{"src/target/generated.go"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cwd, err := os.Getwd()
+			if err != nil {
+				t.Fatal(err)
+			}
+			relativePaths := make([]string, 0, len(tc.paths))
+			inputs := [][]string{tc.paths}
+			for _, input := range tc.paths {
+				relative, err := filepath.Rel(cwd, input)
+				if err != nil {
+					// Windows temporary directories may be on another volume.
+					t.Logf("relative input unavailable: %v", err)
+					break
+				}
+				relativePaths = append(relativePaths, relative)
+			}
+			if len(relativePaths) == len(tc.paths) {
+				inputs = append(inputs, relativePaths)
+			}
+			for _, paths := range inputs {
+				result, err := gocloc.Analyze(paths, &gocloc.Options{Exclude: []string{tc.pattern}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := apiRelativeFiles(t, dir, result); !reflect.DeepEqual(got, tc.want) {
+					t.Fatalf("files=%q, want %q", got, tc.want)
+				}
+			}
+		})
+	}
+}
+
+func TestGlobValidationPrecedesScanning(t *testing.T) {
+	t.Parallel()
+	for _, pattern := range []string{"", "/", "[", "{dist,target", "../target", "src/../target", `C:\target`} {
+		t.Run(pattern, func(t *testing.T) {
+			for _, emptyPaths := range []bool{false, true} {
+				paths := []string{filepath.Join(t.TempDir(), "missing")}
+				if emptyPaths {
+					paths = []string{}
+				}
+				var diagnostics bytes.Buffer
+				var calls atomic.Int32
+				legacy := gocloc.NewClocOptions()
+				legacy.Exclude = []string{"valid/", pattern}
+				legacy.Diagnostics = &diagnostics
+				legacy.OnCode = func(string) { calls.Add(1) }
+				analyze := func() (*gocloc.Result, error) {
+					return gocloc.Analyze(paths, &gocloc.Options{
+						Exclude: legacy.Exclude, Diagnostics: legacy.Diagnostics, OnCode: legacy.OnCode,
+					})
+				}
+				for _, run := range []func() (*gocloc.Result, error){
+					analyze,
+					func() (*gocloc.Result, error) {
+						return gocloc.NewProcessor(gocloc.NewDefinedLanguages(), legacy).Analyze(paths)
+					},
+				} {
+					result, err := run()
+					var optionErr *gocloc.OptionError
+					if !errors.As(err, &optionErr) || optionErr.Field != "Exclude" {
+						t.Fatalf("error=%v, want OptionError for Exclude", err)
+					}
+					if result != nil || diagnostics.Len() != 0 || calls.Load() != 0 {
+						t.Fatal("invalid glob triggered scanning or callbacks")
+					}
+					if !strings.Contains(err.Error(), "pattern 2") {
+						t.Fatalf("error lacks pattern index: %v", err)
+					}
+				}
+			}
+		})
+	}
+}
+
+func apiRelativeFiles(t *testing.T, root string, result *gocloc.Result) []string {
+	t.Helper()
+	files := make([]string, 0, len(result.Files))
+	for path := range result.Files {
+		absolute, err := filepath.Abs(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rel, err := filepath.Rel(root, absolute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, filepath.ToSlash(rel))
+	}
+	sort.Strings(files)
+	return files
+}
+
 func TestReplacedExtensionsAffectPublicAnalysis(t *testing.T) {
 	// Exts is a mutable compatibility variable. This top-level test does not
 	// run in parallel because it temporarily replaces the package mapping.
@@ -150,6 +337,14 @@ func TestAnalyzeFilters(t *testing.T) {
 		want  []string
 	}{
 		{name: "no filters", opts: gocloc.Options{}, want: all},
+		{
+			name: "glob combined with legacy filters",
+			opts: gocloc.Options{
+				Exclude: []string{"src/"}, Match: `\.go$`, NotMatch: `^lib\.go$`,
+				IncludeLangs: []string{"Go", "Python"}, ExcludeExts: []string{"txt"},
+			},
+			want: []string{"scripts/tool.go"},
+		},
 		{name: "include language", opts: gocloc.Options{IncludeLangs: []string{"Go"}}, want: goFiles},
 		{
 			name: "ignore unknown include names",

@@ -64,6 +64,11 @@ func NewProcessorWithExts(langs *DefinedLanguages, options *ClocOptions, exts ma
 // Analyze executes gocloc parsing for the directory of the paths argument and returns the result.
 func (p *Processor) Analyze(paths []string) (*Result, error) {
 	opts := p.opts.withDiagnostics()
+	excluder, err := prepareExcludes(opts.Exclude)
+	if err != nil {
+		return nil, err
+	}
+	opts.excluder = excluder
 	opts.exts = p.exts
 	opts.extsSet = true
 	total := NewLanguage("TOTAL", []string{}, [][]string{{"", ""}})

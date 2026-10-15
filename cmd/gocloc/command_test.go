@@ -183,6 +183,13 @@ func TestRootCommandErrors(t *testing.T) {
 		{name: "not-match regex", args: []string{"--not-match=[", "."}, want: "invalid --not-match:"},
 		{name: "match-d regex", args: []string{"--match-d=[", "."}, want: "invalid --match-d:"},
 		{name: "not-match-d regex", args: []string{"--not-match-d=[", "."}, want: "invalid --not-match-d:"},
+		{name: "exclude glob", args: []string{"--exclude=[", "."}, want: "invalid --exclude: pattern 1"},
+		{name: "empty glob", args: []string{"--exclude=", "."}, want: "invalid --exclude: pattern 1"},
+		{
+			name: "invalid second glob",
+			args: []string{"--exclude=valid/", "--exclude={dist,target", "."},
+			want: "invalid --exclude: pattern 2",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			command := newRootCommand()
@@ -273,6 +280,8 @@ func TestRootCommandInformation(t *testing.T) {
 		{name: "short version", args: []string{"-V"}, want: versionString(Version, GitCommit, info)},
 		{name: "languages", args: []string{"--show-lang"}, want: "Go"},
 		{name: "short languages", args: []string{"-L"}, want: "Go"},
+		{name: "help ignores glob syntax", args: []string{"--exclude=[", "--help"}, want: "Usage:"},
+		{name: "languages ignore glob syntax", args: []string{"--exclude=[", "--show-lang"}, want: "Go"},
 		{name: "one worker", args: []string{"--workers=1", "--version"}, want: versionString(Version, GitCommit, info)},
 		{name: "64 workers", args: []string{"--workers=64", "--version"}, want: versionString(Version, GitCommit, info)},
 	} {
@@ -329,7 +338,7 @@ func TestRootCommandHelpExamples(t *testing.T) {
 				"Examples:",
 				"  gocloc .\n",
 				"  gocloc src tests\n",
-				`  gocloc --not-match-d='(^|[/\\])(dist|node_modules|target)([/\\]|$)' .` + "\n",
+				"  gocloc --exclude '{dist,node_modules,target}/' .\n",
 				"  gocloc -l Go,Python .\n",
 				"  gocloc -f -s code .\n",
 				"  gocloc -o json . > ../counts.json\n",

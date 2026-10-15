@@ -93,6 +93,7 @@ func TestOptionsPrepareFiltersAndOwnership(t *testing.T) {
 		Workers: 4, Dedup: true, Debug: true, Fullpath: true, Diagnostics: io.Discard,
 		ExcludeExts:  []string{"py", "py", "txt", "unknown"},
 		IncludeLangs: []string{"Python", "Go", "Go", "unknown"},
+		Exclude:      []string{"{dist,target}/", "*.min.js"},
 		Match:        `\.go$`,
 		NotMatch:     `_test\.go$`,
 		MatchDir:     "src",
@@ -101,6 +102,7 @@ func TestOptionsPrepareFiltersAndOwnership(t *testing.T) {
 	before := *opts
 	before.ExcludeExts = append([]string{}, opts.ExcludeExts...)
 	before.IncludeLangs = append([]string{}, opts.IncludeLangs...)
+	before.Exclude = append([]string{}, opts.Exclude...)
 	prepared, err := opts.prepare(NewDefinedLanguages())
 	if err != nil {
 		t.Fatal(err)
@@ -131,6 +133,10 @@ func TestOptionsPrepareFiltersAndOwnership(t *testing.T) {
 	// Each call owns its sets and compiled filters, not caller slices or shared state.
 	opts.ExcludeExts[0] = "go"
 	opts.IncludeLangs[0] = "JSON"
+	opts.Exclude[0] = "different/"
+	if !reflect.DeepEqual(prepared.Exclude, before.Exclude) {
+		t.Fatal("prepared glob filters alias caller slices")
+	}
 	if !reflect.DeepEqual(prepared.ExcludeExts, wantExcluded) || !reflect.DeepEqual(prepared.IncludeLangs, wantIncluded) {
 		t.Fatal("prepared filters alias caller slices")
 	}

@@ -233,7 +233,7 @@ gocloc .
 gocloc src tests
 
 # 排除依赖和构建目录
-gocloc --not-match-d='(^|[/\\])(dist|node_modules|target)([/\\]|$)' .
+gocloc --exclude '{dist,node_modules,target}/' .
 
 # 筛选语言或排除扩展名
 gocloc -l Go,Python .
@@ -257,7 +257,33 @@ gocloc -h
 `-o` 支持 `default`、`json`、`markdown`、`cloc-xml` 和 `sloccount`。
 长选项与短选项可以混用，完整列表见 `gocloc -h`。
 
-`--not-match-d` 使用正则表达式匹配目录路径，不是 glob 通配符。
+使用可重复的 `--exclude` 通过 glob 排除文件或目录，多个规则取并集：
+
+```sh
+gocloc --exclude 'target/' --exclude '*.min.js' .
+gocloc --exclude 'src/generated/' --exclude '**/vendor/' .
+```
+
+| 模式 | 含义 |
+| --- | --- |
+| `target/` | 任意层级下完整名字为 target 的目录及其内容，保留 gcc.target |
+| `{dist,node_modules,target}/` | 任意层级下这三个完整目录名 |
+| `*.min.js` | 任意层级下匹配的文件名或目录名 |
+| `/target/` | 每个扫描根目录直接包含的 target 目录 |
+| `src/generated/` | 相对于每个扫描根目录的完整目录路径 |
+| `**/generated/` | 任意层级的 generated 目录，包含根目录直接包含的同名目录 |
+
+模式必须加引号，避免 shell 提前展开。匹配区分大小写，`*` 不跨目录，`**` 可以匹配零层或多层目录；
+末尾 `/` 将规则限定为目录，没有末尾 `/` 时也可匹配文件。目录命中后直接停止遍历其内容。
+多个输入分别作为匹配根目录；不锚定的名字规则也检查输入目录自身的名字。
+显式文件使用其父目录作为匹配根目录，并检查父目录自身是否被名字规则排除。
+根目录之外的祖先不参与 glob 匹配；`--fullpath` 不影响 glob。
+模式在所有平台统一使用 `/`，反斜杠用于转义。空模式和非法模式在扫描前报错。
+glob 排除优先于现有包含规则；`!` 不表示重新包含，也不会自动读取 `.gitignore`。
+
+`--match`、`--not-match`、`--match-d`、`--not-match-d` 保留原有正则语义。
+其中目录参数对目录路径执行子串匹配；日常排除推荐使用 `--exclude`。
+`-e/--exclude-ext` 继续用于扩展名过滤。
 生成的报告应放在扫描目录之外，或显式排除。`>` 会覆盖目标文件。
 旧版本默认开启去重；如需保留旧版统计行为，请添加 `--dedup`。
 
@@ -273,13 +299,13 @@ gocloc -h
 result, err := gocloc.Analyze([]string{"."}, nil)
 ```
 
-需要过滤时，直接传入列表和正则表达式：
+需要过滤时，直接传入语言列表和 glob 模式：
 
 ```go
 result, err := gocloc.Analyze([]string{"src", "tests"}, &gocloc.Options{
     IncludeLangs: []string{"Go", "Python"},
     ExcludeExts:  []string{"txt"},
-    NotMatchDir:  `(^|[/\\])(dist|node_modules|target)([/\\]|$)`,
+    Exclude:      []string{"{dist,node_modules,target}/", "*_test.go"},
     Dedup:        true, // 可选：内容相同的文件只统计一次。
 })
 ```
@@ -290,6 +316,9 @@ worker 数量为 `runtime.GOMAXPROCS(0)`，最多 64 个。`Workers: 1` 使用�
 路径列表为空时返回空结果，不会自动扫描当前目录。
 
 过滤配置每次调用只准备一次。配置不合法时，在扫描前返回 `*gocloc.OptionError`。
+`Options.Exclude` 与 CLI 的 glob 规则相同，非法 glob 的错误字段为 `Exclude`；
+历史 `ClocOptions.Exclude` 在 `Processor.Analyze` 中也受支持。
+`AnalyzeFile` 和 `AnalyzeReader` 不执行路径过滤。
 文件正则默认匹配文件名，设置 `Fullpath` 后匹配完整路径；目录正则始终匹配目录路径。
 与 CLI 一致，`ExcludeExts` 排除的是扩展名对应的识别语言，包括该语言的其他扩展名。
 `IncludeLangs` 会忽略未知语言名；如果传入的名称都无法识别，则不限制统计语言。

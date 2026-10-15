@@ -1,15 +1,119 @@
 package core
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/spf13/afero"
 )
+
+func TestWalkGlobPrunesExcludedDirectory(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("directory permissions do not prevent ReadDir on Windows")
+	}
+	root := t.TempDir()
+	blocked := filepath.Join(root, "target")
+	if err := os.Mkdir(blocked, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(blocked, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(blocked, 0o700); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := os.ReadDir(blocked); err == nil {
+		t.Skip("current user can read directories without permission")
+	}
+	var diagnostics bytes.Buffer
+	opts := NewClocOptions()
+	opts.Diagnostics = &diagnostics
+	opts = opts.withDiagnostics()
+	if err := walkCandidateFiles(root, opts, func(string) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(diagnostics.String(), "target") {
+		t.Fatal("unfiltered traversal did not attempt to read the blocked directory")
+	}
+	diagnostics.Reset()
+	filter, err := prepareExcludes([]string{"target/"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.excluder = filter
+	if err := walkCandidateFiles(root, opts, func(path string) error {
+		t.Errorf("unexpected candidate %q", path)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if diagnostics.Len() != 0 {
+		t.Fatalf("excluded directory was visited: %s", diagnostics.String())
+	}
+}
+
+func BenchmarkWalkCandidateFiles(b *testing.B) {
+	root := b.TempDir()
+	for _, dir := range []string{"src", "target", "src/target", "gcc.target"} {
+		fullDir := filepath.Join(root, filepath.FromSlash(dir))
+		if err := os.MkdirAll(fullDir, 0o700); err != nil {
+			b.Fatal(err)
+		}
+		for i := range 128 {
+			name := filepath.Join(fullDir, fmt.Sprintf("file%03d.go", i))
+			if err := os.WriteFile(name, []byte("package sample\n"), 0o600); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+	for _, tc := range []struct {
+		name string
+		glob []string
+		re   string
+		want int
+	}{
+		{name: "no_filters", want: 512},
+		{name: "glob", glob: []string{"{dist,node_modules,target}/"}, want: 256},
+		{name: "regex", re: `(^|[/\\])(dist|node_modules|target)([/\\]|$)`, want: 256},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			opts := NewClocOptions()
+			filter, err := prepareExcludes(tc.glob)
+			if err != nil {
+				b.Fatal(err)
+			}
+			opts.excluder = filter
+			if tc.re != "" {
+				opts.ReNotMatchDir = regexp.MustCompile(tc.re)
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for range b.N {
+				count := 0
+				if err := walkCandidateFiles(root, opts, func(string) error {
+					count++
+					return nil
+				}); err != nil {
+					b.Fatal(err)
+				}
+				if count != tc.want {
+					b.Fatalf("candidates=%d, want %d", count, tc.want)
+				}
+			}
+		})
+	}
+}
 
 func TestWalkCandidateFilesMatchesLegacyWalk(t *testing.T) {
 	dir := t.TempDir()

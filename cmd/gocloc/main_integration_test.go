@@ -79,6 +79,7 @@ func TestCLIIntegration(t *testing.T) {
 			"main.go", "src/keep.go", "src/dist-other/keep.go", "src/build-target/keep.go",
 			"dist/generated.go", "dist/sub/nested.go", "src/node_modules/dependency.go",
 			"src/target/sub/generated.go",
+			"gcc.target/keep.go", "distribution/keep.go", "src/skip_test.go",
 		} {
 			path := filepath.Join(root, name)
 			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -88,25 +89,45 @@ func TestCLIIntegration(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		stdout, stderr, err := runCLI(binary, root, []string{
-			`--not-match-d=(^|[/\\])(dist|node_modules|target)([/\\]|$)`,
-			"-f", "-o", "json", ".",
-		})
-		if err != nil || stderr != "" {
-			t.Fatalf("run CLI: %v, stderr: %s", err, stderr)
-		}
-		var result gocloc.JSONFilesResult
-		if err := json.Unmarshal([]byte(stdout), &result); err != nil {
-			t.Fatal(err)
-		}
-		got := make([]string, 0, len(result.Files))
-		for _, file := range result.Files {
-			got = append(got, filepath.ToSlash(file.Name))
-		}
-		sort.Strings(got)
-		want := []string{"main.go", "src/build-target/keep.go", "src/dist-other/keep.go", "src/keep.go"}
-		if strings.Join(got, "\n") != strings.Join(want, "\n") {
-			t.Fatalf("counted files = %v, want %v", got, want)
+		for _, tc := range []struct {
+			name string
+			args []string
+		}{
+			{
+				name: "glob braces and repeated flags",
+				args: []string{"--exclude={dist,node_modules,target}/", "--exclude=*_test.go"},
+			},
+			{
+				name: "legacy regex compatibility",
+				args: []string{
+					`--not-match-d=(^|[/\\])(dist|node_modules|target)([/\\]|$)`,
+					`--not-match=_test\.go$`,
+				},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				args := append([]string{"-f", "-o", "json", "."}, tc.args...)
+				stdout, stderr, err := runCLI(binary, root, args)
+				if err != nil || stderr != "" {
+					t.Fatalf("run CLI: %v, stderr: %s", err, stderr)
+				}
+				var result gocloc.JSONFilesResult
+				if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+					t.Fatal(err)
+				}
+				got := make([]string, 0, len(result.Files))
+				for _, file := range result.Files {
+					got = append(got, filepath.ToSlash(file.Name))
+				}
+				sort.Strings(got)
+				want := []string{
+					"distribution/keep.go", "gcc.target/keep.go", "main.go",
+					"src/build-target/keep.go", "src/dist-other/keep.go", "src/keep.go",
+				}
+				if strings.Join(got, "\n") != strings.Join(want, "\n") {
+					t.Fatalf("counted files = %v, want %v", got, want)
+				}
+			})
 		}
 	})
 
@@ -163,6 +184,7 @@ func TestCLIIntegration(t *testing.T) {
 			{"--sort=unknown", "."}, {"--by-file", "--sort=files", "."}, {"--match=[", "."},
 			{"-w0", "-V"}, {"-w65", "-L"}, {"-sunknown", "."}, {"-f", "-sfiles", "."},
 			{"--dedup", "--skip-duplicated", "."}, {"--dedup=invalid", "."},
+			{"--exclude=", "."}, {"--exclude=[", "."},
 		} {
 			t.Run(strings.Join(args, " "), func(t *testing.T) {
 				stdout, stderr, err := runCLI(binary, dir, args)
