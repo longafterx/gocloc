@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/bmatcuk/doublestar/v4"
-	"github.com/rustyllh/gocloc"
+	"github.com/longafterx/gocloc"
 )
 
 func TestAnalyzeDefaultsAndDedup(t *testing.T) {

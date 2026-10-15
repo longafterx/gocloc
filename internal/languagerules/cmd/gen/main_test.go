@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rustyllh/gocloc/internal/core"
-	"github.com/rustyllh/gocloc/internal/lexer"
+	"github.com/longafterx/gocloc/internal/core"
+	"github.com/longafterx/gocloc/internal/lexer"
 )
 
 func TestGenerateArtifacts(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/rustyllh/gocloc/internal/lexertest"
+	"github.com/longafterx/gocloc/internal/lexertest"
 )
 
 const languageFixtureVersion = "v2"

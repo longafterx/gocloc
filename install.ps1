@@ -40,7 +40,7 @@ try {
 
     if ($Version -eq 'latest') {
         try {
-            $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/rustyllh/gocloc/releases/latest' `
+            $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/longafterx/gocloc/releases/latest' `
                 -Headers @{ 'User-Agent' = 'gocloc-installer' } -TimeoutSec 60
             $Version = $release.tag_name
         } catch {
@@ -54,7 +54,7 @@ try {
 
     $archive = "gocloc_Windows_$arch.zip"
     $checksums = "gocloc_$($Version.Substring(1))_checksums.txt"
-    $downloadUrl = "https://github.com/rustyllh/gocloc/releases/download/$Version"
+    $downloadUrl = "https://github.com/longafterx/gocloc/releases/download/$Version"
     $workDir = Join-Path ([IO.Path]::GetTempPath()) ([IO.Path]::GetRandomFileName())
     $null = New-Item -ItemType Directory -Path $workDir
     Write-Output "Downloading gocloc $Version for Windows/$arch..."

@@ -19,7 +19,7 @@ if ($Child) {
     $env:PROCESSOR_ARCHITECTURE = $Architecture
     function Invoke-RestMethod {
         param($Uri, $Headers, $TimeoutSec)
-        if ($Uri -ne 'https://api.github.com/repos/rustyllh/gocloc/releases/latest') {
+        if ($Uri -ne 'https://api.github.com/repos/longafterx/gocloc/releases/latest') {
             throw "Unexpected URL: $Uri"
         }
         Add-Content -LiteralPath (Join-Path $FixtureDir 'requests') -Value $Uri
@@ -28,7 +28,7 @@ if ($Child) {
     }
     function Invoke-WebRequest {
         param([switch]$UseBasicParsing, $Uri, $OutFile, $TimeoutSec)
-        if ($Uri -notlike 'https://github.com/rustyllh/gocloc/releases/download/v1.2.3/*') {
+        if ($Uri -notlike 'https://github.com/longafterx/gocloc/releases/download/v1.2.3/*') {
             throw "Unexpected URL: $Uri"
         }
         Add-Content -LiteralPath (Join-Path $FixtureDir 'requests') -Value $Uri

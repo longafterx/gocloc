@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rustyllh/gocloc"
+	"github.com/longafterx/gocloc"
 	"github.com/spf13/cobra"
 )
 

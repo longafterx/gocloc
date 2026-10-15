@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rustyllh/gocloc"
+	"github.com/longafterx/gocloc"
 )
 
 func TestCommandOutputUsesConfiguredWriter(t *testing.T) {

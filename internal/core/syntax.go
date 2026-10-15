@@ -1,6 +1,6 @@
 package core
 
-import "github.com/rustyllh/gocloc/internal/lexer"
+import "github.com/longafterx/gocloc/internal/lexer"
 
 func syntaxForLanguage(language *Language) *lexer.Rules {
 	if len(language.regexLineComments) != 0 {

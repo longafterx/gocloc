@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/rustyllh/gocloc"
+	"github.com/longafterx/gocloc"
 )
 
 // OutputTypeDefault is cloc's text output format for --output-type option

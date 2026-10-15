@@ -2,9 +2,9 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-[![GoDoc](https://godoc.org/github.com/rustyllh/gocloc?status.svg)](https://godoc.org/github.com/rustyllh/gocloc)
-[![ci](https://github.com/rustyllh/gocloc/workflows/Go/badge.svg)](https://github.com/rustyllh/gocloc/actions)
-[![Go Report Card](https://goreportcard.com/badge/github.com/rustyllh/gocloc)](https://goreportcard.com/report/github.com/rustyllh/gocloc)
+[![GoDoc](https://godoc.org/github.com/longafterx/gocloc?status.svg)](https://godoc.org/github.com/longafterx/gocloc)
+[![ci](https://github.com/longafterx/gocloc/workflows/Go/badge.svg)](https://github.com/longafterx/gocloc/actions)
+[![Go Report Card](https://goreportcard.com/badge/github.com/longafterx/gocloc)](https://goreportcard.com/report/github.com/longafterx/gocloc)
 [![Docker Pulls](https://img.shields.io/docker/pulls/rustyllh/gocloc)](https://hub.docker.com/r/rustyllh/gocloc)
 [![Docker Image Size](https://img.shields.io/docker/image-size/rustyllh/gocloc/latest)](https://hub.docker.com/r/rustyllh/gocloc)
 
@@ -18,7 +18,7 @@ Inspired by [tokei](https://github.com/Aaronepower/tokei) and faster in our late
 Install the latest stable release (no Go required; SHA-256 verified):
 
 ```sh
-curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/rustyllh/gocloc/master/install.sh | sh
+curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/longafterx/gocloc/master/install.sh | sh
 ```
 
 Requires `curl`, `tar`, and `sha256sum` or `shasum`. Installs to `$HOME/.local/bin`; add it to your `PATH` if needed.
@@ -28,14 +28,14 @@ Requires `curl`, `tar`, and `sha256sum` or `shasum`. Installs to `$HOME/.local/b
 Run in PowerShell 5.1+:
 
 ```powershell
-& ([scriptblock]::Create((Invoke-RestMethod https://raw.githubusercontent.com/rustyllh/gocloc/master/install.ps1 -ErrorAction Stop)))
+& ([scriptblock]::Create((Invoke-RestMethod https://raw.githubusercontent.com/longafterx/gocloc/master/install.ps1 -ErrorAction Stop)))
 ```
 
 Installs to `%LOCALAPPDATA%\gocloc\bin`; add it to your user `Path`. Supports x86-64 and i386, not Windows ARM64.
 
 Both installers execute downloaded code; review [install.sh](install.sh) or [install.ps1](install.ps1) first if needed.
 Run the installer again to upgrade, then check `gocloc --version`.
-Alternatively, download a binary and its checksums from [GitHub Releases](https://github.com/rustyllh/gocloc/releases).
+Alternatively, download a binary and its checksums from [GitHub Releases](https://github.com/longafterx/gocloc/releases).
 
 ### Docker
 
@@ -52,7 +52,7 @@ Append CLI options after the image name, for example `--dedup -o json .`.
 
 * measured on 2026-10-15
 * CPU Apple M3 8-core / 16 GiB / macOS 27.0.1 arm64
-* optimized gocloc: [38bad47](https://github.com/rustyllh/gocloc/commit/38bad4752b755918759c2d2b4703b458125b01f4) (source build)
+* optimized gocloc: [38bad47](https://github.com/longafterx/gocloc/commit/38bad4752b755918759c2d2b4703b458125b01f4) (source build)
 * [tokei 14.0.0](https://github.com/XAMPPRocky/tokei/releases/tag/v14.0.0) compiled with serialization support: json
 * upstream gocloc [679b457](https://github.com/hhatto/gocloc/commit/679b457182dcf852d90e52f132403d6b7de0e33d) (source build; [releases](https://github.com/hhatto/gocloc/releases))
 * [cloc 2.04](https://github.com/AlDanial/cloc/releases/tag/v2.04)

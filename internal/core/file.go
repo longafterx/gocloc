@@ -12,7 +12,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/rustyllh/gocloc/internal/lexer"
+	"github.com/longafterx/gocloc/internal/lexer"
 )
 
 // ClocFile is collecting to line count result.

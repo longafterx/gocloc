@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/rustyllh/gocloc"
+	"github.com/longafterx/gocloc"
 )
 
 func main() {

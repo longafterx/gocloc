@@ -2,9 +2,9 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-[![GoDoc](https://godoc.org/github.com/rustyllh/gocloc?status.svg)](https://godoc.org/github.com/rustyllh/gocloc)
-[![ci](https://github.com/rustyllh/gocloc/workflows/Go/badge.svg)](https://github.com/rustyllh/gocloc/actions)
-[![Go Report Card](https://goreportcard.com/badge/github.com/rustyllh/gocloc)](https://goreportcard.com/report/github.com/rustyllh/gocloc)
+[![GoDoc](https://godoc.org/github.com/longafterx/gocloc?status.svg)](https://godoc.org/github.com/longafterx/gocloc)
+[![ci](https://github.com/longafterx/gocloc/workflows/Go/badge.svg)](https://github.com/longafterx/gocloc/actions)
+[![Go Report Card](https://goreportcard.com/badge/github.com/longafterx/gocloc)](https://goreportcard.com/report/github.com/longafterx/gocloc)
 [![Docker Pulls](https://img.shields.io/docker/pulls/rustyllh/gocloc)](https://hub.docker.com/r/rustyllh/gocloc)
 [![Docker Image Size](https://img.shields.io/docker/image-size/rustyllh/gocloc/latest)](https://hub.docker.com/r/rustyllh/gocloc)
 
@@ -18,7 +18,7 @@
 安装最新稳定版，无需 Go 环境，自动校验 SHA-256：
 
 ```sh
-curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/rustyllh/gocloc/master/install.sh | sh
+curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/longafterx/gocloc/master/install.sh | sh
 ```
 
 需要 `curl`、`tar` 以及 `sha256sum` 或 `shasum`。默认安装到 `$HOME/.local/bin`，请按需将其加入 `PATH`。
@@ -28,14 +28,14 @@ curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/rustyllh
 在 PowerShell 5.1+ 中执行：
 
 ```powershell
-& ([scriptblock]::Create((Invoke-RestMethod https://raw.githubusercontent.com/rustyllh/gocloc/master/install.ps1 -ErrorAction Stop)))
+& ([scriptblock]::Create((Invoke-RestMethod https://raw.githubusercontent.com/longafterx/gocloc/master/install.ps1 -ErrorAction Stop)))
 ```
 
 默认安装到 `%LOCALAPPDATA%\gocloc\bin`，请将其加入用户 `Path`。支持 x86-64 和 i386，不支持 Windows ARM64。
 
 这两种方式会执行下载的脚本，可先查看 [install.sh](install.sh) 或 [install.ps1](install.ps1)。
 再次运行安装命令即可升级，使用 `gocloc --version` 确认版本。
-也可以从 [GitHub Releases](https://github.com/rustyllh/gocloc/releases) 手动下载二进制文件及校验文件。
+也可以从 [GitHub Releases](https://github.com/longafterx/gocloc/releases) 手动下载二进制文件及校验文件。
 
 ### Docker
 
@@ -52,7 +52,7 @@ docker run --rm --read-only --mount "type=bind,source=$(pwd),target=/workdir,rea
 
 * 测试日期：2026-10-15
 * CPU Apple M3 8 核 / 16 GiB / macOS 27.0.1 arm64
-* 优化版 gocloc：[38bad47](https://github.com/rustyllh/gocloc/commit/38bad4752b755918759c2d2b4703b458125b01f4)（源码构建）
+* 优化版 gocloc：[38bad47](https://github.com/longafterx/gocloc/commit/38bad4752b755918759c2d2b4703b458125b01f4)（源码构建）
 * [tokei 14.0.0](https://github.com/XAMPPRocky/tokei/releases/tag/v14.0.0)，编译时启用了 JSON 序列化支持
 * 上游 gocloc：[679b457](https://github.com/hhatto/gocloc/commit/679b457182dcf852d90e52f132403d6b7de0e33d)（源码构建；[发行版](https://github.com/hhatto/gocloc/releases)）
 * [cloc 2.04](https://github.com/AlDanial/cloc/releases/tag/v2.04)

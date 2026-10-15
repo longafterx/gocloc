@@ -10,7 +10,7 @@ import (
 	"unicode"
 
 	"github.com/go-enry/go-enry/v2"
-	"github.com/rustyllh/gocloc/internal/lexer"
+	"github.com/longafterx/gocloc/internal/lexer"
 )
 
 // ClocLanguage is provided for xml-cloc and json format.

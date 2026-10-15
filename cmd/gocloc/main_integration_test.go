@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rustyllh/gocloc"
+	"github.com/longafterx/gocloc"
 )
 
 func TestCLIIntegration(t *testing.T) {

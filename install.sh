@@ -67,7 +67,7 @@ else
     fail 'SHA-256 verification requires sha256sum or shasum'
 fi
 
-release_url=https://github.com/rustyllh/gocloc/releases
+release_url=https://github.com/longafterx/gocloc/releases
 if [ "$version" = latest ]; then
     resolved_url=$(curl --fail --silent --show-error --location \
         --proto '=https' --proto-redir '=https' --tlsv1.2 \
