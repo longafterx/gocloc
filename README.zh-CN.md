@@ -50,14 +50,24 @@ docker run --rm --read-only --mount "type=bind,source=$(pwd),target=/workdir,rea
 
 ## 性能
 
-* CPU Apple M3 8 核 / 16 GiB / macOS 27.0 arm64
-* 优化版 gocloc：`0.1.12 (8a20e2e)`（使用 Go 1.27.1 编译）
+* 测试日期：2026-10-15
+* CPU Apple M3 8 核 / 16 GiB / macOS 27.0.1 arm64
+* 优化版 gocloc：[38bad47](https://github.com/rustyllh/gocloc/commit/38bad4752b755918759c2d2b4703b458125b01f4)（源码构建）
 * [tokei 14.0.0](https://github.com/XAMPPRocky/tokei/releases/tag/v14.0.0)，编译时启用了 JSON 序列化支持
 * 上游 gocloc：[679b457](https://github.com/hhatto/gocloc/commit/679b457182dcf852d90e52f132403d6b7de0e33d)（源码构建；[发行版](https://github.com/hhatto/gocloc/releases)）
 * [cloc 2.04](https://github.com/AlDanial/cloc/releases/tag/v2.04)
 * 测试目标：[golang/go](https://github.com/golang/go) 仓库，`master` 分支，提交 [6b3800e](https://github.com/golang/go/commit/6b3800e1dd90925b4184acd6391f68bffd16b6a5)
 
-所有工具均使用默认选项扫描上述仓库。命令输出取自一次有代表性的热缓存运行；`time` 行显示热缓存平均值：优化版 gocloc 运行 30 次，tokei 和上游 gocloc 各运行 10 次，cloc 运行 3 次。
+两个 gocloc 版本均使用 Go 1.27.2 编译。所有工具均以默认选项扫描上述仓库，不覆盖运行时或线程配置。每个工具先预热一次，计时运行的输出重定向到 `/dev/null`。三个快速工具交替顺序运行，随后测量 cloc，保留全部样本。下方命令输出取自预热运行，`time` 行显示计时运行的平均值。
+
+| 工具 | 运行次数 | 平均耗时（秒） | 中位数（秒） | 耗时范围（秒） |
+| --- | ---: | ---: | ---: | ---: |
+| 优化版 gocloc | 30 | 0.285 | 0.212 | 0.196–0.746 |
+| tokei | 10 | 0.299 | 0.221 | 0.204–0.691 |
+| 上游 gocloc | 10 | 1.731 | 1.435 | 1.262–3.317 |
+| cloc | 3 | 28.577 | 29.016 | 27.025–29.690 |
+
+测量期间有桌面后台任务运行，耗时波动如上表所示。统计结果遵循各工具的默认口径；cloc 每次运行有 2–3 个文件超时。
 
 ### 优化版 gocloc
 
@@ -92,7 +102,7 @@ Awk                              1              1              6              7
 -------------------------------------------------------------------------------
 TOTAL                        14292         314457         478885        3015480
 -------------------------------------------------------------------------------
-gocloc .  0.296s user 0.874s system 601.3% cpu 0.195 total
+gocloc .  0.288s user 0.804s system 448.9% cpu 0.285 total
 ```
 
 ### tokei
@@ -140,7 +150,7 @@ $ time tokei .
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  Total                 14319      3829579      2805869       716324       307386
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-tokei .  0.569s user 0.758s system 552.5% cpu 0.261 total
+tokei .  0.555s user 0.665s system 478.5% cpu 0.299 total
 ```
 
 ### 上游 gocloc（https://github.com/hhatto/gocloc）
@@ -176,7 +186,7 @@ Awk                              1              1              6              7
 -------------------------------------------------------------------------------
 TOTAL                        14057         312279         513468        2939865
 -------------------------------------------------------------------------------
-gocloc-upstream .  0.609s user 0.947s system 105.3% cpu 1.476 total
+gocloc-upstream .  0.633s user 0.901s system 94.1% cpu 1.731 total
 ```
 
 ### cloc
@@ -184,14 +194,14 @@ gocloc-upstream .  0.609s user 0.947s system 105.3% cpu 1.476 total
 ```
 $ time cloc .
 3 errors:
-Line count, exceeded timeout:  ./src/net/http/requestwrite_test.go
+Line count, exceeded timeout:  ./src/cmd/dist/build.go
 Line count, exceeded timeout:  ./src/vendor/golang.org/x/net/idna/tables15.0.0.go
 Line count, exceeded timeout:  ./src/vendor/golang.org/x/net/idna/tables17.0.0.go
-github.com/AlDanial/cloc v 2.04  T=26.55 s (530.8 files/s, 142732.0 lines/s)
+github.com/AlDanial/cloc v 2.04  T=33.35 s (422.5 files/s, 113621.7 lines/s)
 -----------------------------------------------------------------------------------
 Language                         files          blank        comment           code
 -----------------------------------------------------------------------------------
-Go                               11519         274964         460748        2523775
+Go                               11519         274964         460948        2523575
 Text                              1473          14804              0         233134
 Assembly                           656          16184          24182         149525
 HTML                                15           2098             50          20117
@@ -220,9 +230,14 @@ Fortran 90                           2              1              3            
 awk                                  1              1              6              7
 MATLAB                               1              1              0              4
 -----------------------------------------------------------------------------------
-SUM:                             14090         314431         488604        2985991
+SUM:                             14090         314431         488804        2985791
 -----------------------------------------------------------------------------------
-cloc .  23.151s user 1.617s system 94.3% cpu 26.104 total
+
+One or more files took longer to process than expected.
+Try rerunning without timeout guards by adding  --timeout 0
+to your command line arguments.  See the documentation on
+the --timeout switch for more information.
+cloc .  22.923s user 1.960s system 86.7% cpu 28.577 total
 ```
 
 ## 使用

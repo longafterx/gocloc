@@ -50,14 +50,24 @@ Append CLI options after the image name, for example `--dedup -o json .`.
 
 ## Performance
 
-* CPU Apple M3 8-core / 16 GiB / macOS 27.0 arm64
-* optimized gocloc: `0.1.12 (8a20e2e)` (built with Go 1.27.1)
+* measured on 2026-10-15
+* CPU Apple M3 8-core / 16 GiB / macOS 27.0.1 arm64
+* optimized gocloc: [38bad47](https://github.com/rustyllh/gocloc/commit/38bad4752b755918759c2d2b4703b458125b01f4) (source build)
 * [tokei 14.0.0](https://github.com/XAMPPRocky/tokei/releases/tag/v14.0.0) compiled with serialization support: json
 * upstream gocloc [679b457](https://github.com/hhatto/gocloc/commit/679b457182dcf852d90e52f132403d6b7de0e33d) (source build; [releases](https://github.com/hhatto/gocloc/releases))
 * [cloc 2.04](https://github.com/AlDanial/cloc/releases/tag/v2.04)
 * target repository is [golang/go](https://github.com/golang/go), branch `master`, commit [6b3800e](https://github.com/golang/go/commit/6b3800e1dd90925b4184acd6391f68bffd16b6a5)
 
-All tools scanned the repository above using default options. The command output is from a representative warm-cache run. The `time` lines are warm-cache averages: 30 runs for optimized gocloc, 10 runs for tokei and upstream gocloc, and 3 runs for cloc.
+Both gocloc binaries were built with Go 1.27.2. All tools scanned the repository above using default options, with no runtime or thread overrides. Each tool had one untimed warm-up; timed output went to `/dev/null`. The fast tools ran in alternating order, followed by cloc. All samples were retained. The command output below is from the warm-up; the `time` lines show averages over the timed runs.
+
+| Tool | Runs | Mean (s) | Median (s) | Range (s) |
+| --- | ---: | ---: | ---: | ---: |
+| optimized gocloc | 30 | 0.285 | 0.212 | 0.196–0.746 |
+| tokei | 10 | 0.299 | 0.221 | 0.204–0.691 |
+| upstream gocloc | 10 | 1.731 | 1.435 | 1.262–3.317 |
+| cloc | 3 | 28.577 | 29.016 | 27.025–29.690 |
+
+Background desktop tasks were active during measurement, and timings varied as shown above. Counts reflect each tool's default behavior; cloc reported 2–3 file timeouts per run.
 
 ### optimized gocloc
 
@@ -92,7 +102,7 @@ Awk                              1              1              6              7
 -------------------------------------------------------------------------------
 TOTAL                        14292         314457         478885        3015480
 -------------------------------------------------------------------------------
-gocloc .  0.296s user 0.874s system 601.3% cpu 0.195 total
+gocloc .  0.288s user 0.804s system 448.9% cpu 0.285 total
 ```
 
 ### tokei
@@ -140,7 +150,7 @@ $ time tokei .
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  Total                 14319      3829579      2805869       716324       307386
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-tokei .  0.569s user 0.758s system 552.5% cpu 0.261 total
+tokei .  0.555s user 0.665s system 478.5% cpu 0.299 total
 ```
 
 ### upstream gocloc (https://github.com/hhatto/gocloc)
@@ -176,7 +186,7 @@ Awk                              1              1              6              7
 -------------------------------------------------------------------------------
 TOTAL                        14057         312279         513468        2939865
 -------------------------------------------------------------------------------
-gocloc-upstream .  0.609s user 0.947s system 105.3% cpu 1.476 total
+gocloc-upstream .  0.633s user 0.901s system 94.1% cpu 1.731 total
 ```
 
 ### cloc
@@ -184,14 +194,14 @@ gocloc-upstream .  0.609s user 0.947s system 105.3% cpu 1.476 total
 ```
 $ time cloc .
 3 errors:
-Line count, exceeded timeout:  ./src/net/http/requestwrite_test.go
+Line count, exceeded timeout:  ./src/cmd/dist/build.go
 Line count, exceeded timeout:  ./src/vendor/golang.org/x/net/idna/tables15.0.0.go
 Line count, exceeded timeout:  ./src/vendor/golang.org/x/net/idna/tables17.0.0.go
-github.com/AlDanial/cloc v 2.04  T=26.55 s (530.8 files/s, 142732.0 lines/s)
+github.com/AlDanial/cloc v 2.04  T=33.35 s (422.5 files/s, 113621.7 lines/s)
 -----------------------------------------------------------------------------------
 Language                         files          blank        comment           code
 -----------------------------------------------------------------------------------
-Go                               11519         274964         460748        2523775
+Go                               11519         274964         460948        2523575
 Text                              1473          14804              0         233134
 Assembly                           656          16184          24182         149525
 HTML                                15           2098             50          20117
@@ -220,9 +230,14 @@ Fortran 90                           2              1              3            
 awk                                  1              1              6              7
 MATLAB                               1              1              0              4
 -----------------------------------------------------------------------------------
-SUM:                             14090         314431         488604        2985991
+SUM:                             14090         314431         488804        2985791
 -----------------------------------------------------------------------------------
-cloc .  23.151s user 1.617s system 94.3% cpu 26.104 total
+
+One or more files took longer to process than expected.
+Try rerunning without timeout guards by adding  --timeout 0
+to your command line arguments.  See the documentation on
+the --timeout switch for more information.
+cloc .  22.923s user 1.960s system 86.7% cpu 28.577 total
 ```
 
 ## Usage
