@@ -50,9 +50,25 @@ func TestCLIIntegration(t *testing.T) {
 			{name: "interspersed", args: []string{"src", "--workers", "2", "scripts"}, files: 3, code: 8},
 			{name: "exclude directory", args: []string{"--not-match-d=target", "."}, files: 3, code: 8},
 			{name: "include directory", args: []string{"--match-d=scripts", "."}, files: 1, code: 4},
-			{name: "include filename", args: []string{`--match=\.py$`, "."}, files: 1, code: 4},
-			{name: "exclude filename", args: []string{`--not-match=\.py$`, "."}, files: 3, code: 5},
-			{name: "fullpath", args: []string{"--fullpath", `--match=^scripts[/\\]`, "."}, files: 1, code: 4},
+			{name: "include filename", args: []string{"--match=*.py", "."}, files: 1, code: 4},
+			{name: "exclude filename", args: []string{"--not-match=*.py", "."}, files: 3, code: 5},
+			{name: "relative path glob", args: []string{"--match=scripts/**/*.py", "."}, files: 1, code: 4},
+			{name: "single level path", args: []string{"--match=src/*.go", "."}, files: 2, code: 4},
+			{name: "brace alternatives", args: []string{"--match=*.{go,py}", "."}, files: 4, code: 9},
+			{name: "directory braces", args: []string{"--match-d={src,scripts}/", "."}, files: 3, code: 8},
+			{name: "anchored directory", args: []string{"--match-d=/src/", "."}, files: 2, code: 4},
+			{name: "include input directory", args: []string{"--match-d=src/", "src"}, files: 2, code: 4},
+			{
+				name: "include explicit file parent",
+				args: []string{"--match-d=scripts/", "--match=/run.py", "scripts/run.py"}, files: 1, code: 4,
+			},
+			{
+				name: "exclude explicit file parent",
+				args: []string{"--not-match-d=target/", "target/generated.go"},
+			},
+			{name: "directory whole name", args: []string{"--not-match-d=arget", "."}, files: 4, code: 9},
+			{name: "file whole name", args: []string{"--match=run", "."}},
+			{name: "regex no longer interpreted", args: []string{"--match=^run.py$", "."}},
 			{name: "exclude extension", args: []string{"--exclude-ext=go,txt", "."}, files: 1, code: 4},
 			{name: "include languages", args: []string{"--include-lang=Python,JSON", "."}, files: 1, code: 4},
 		} {
@@ -98,10 +114,10 @@ func TestCLIIntegration(t *testing.T) {
 				args: []string{"--exclude={dist,node_modules,target}/", "--exclude=*_test.go"},
 			},
 			{
-				name: "legacy regex compatibility",
+				name: "directory and filename glob flags",
 				args: []string{
-					`--not-match-d=(^|[/\\])(dist|node_modules|target)([/\\]|$)`,
-					`--not-match=_test\.go$`,
+					"--not-match-d={dist,node_modules,target}/",
+					"--not-match=*_test.go",
 				},
 			},
 		} {
@@ -184,7 +200,9 @@ func TestCLIIntegration(t *testing.T) {
 			{"--sort=unknown", "."}, {"--by-file", "--sort=files", "."}, {"--match=[", "."},
 			{"-w0", "-V"}, {"-w65", "-L"}, {"-sunknown", "."}, {"-f", "-sfiles", "."},
 			{"--dedup", "--skip-duplicated", "."}, {"--dedup=invalid", "."},
-			{"--exclude=", "."}, {"--exclude=[", "."},
+			{"--exclude=", "."}, {"--exclude=[", "."}, {"--fullpath", "."},
+			{"--match=src/", "."}, {"--not-match=src/", "."},
+			{"--not-match=[", "."}, {"--match-d=[", "."}, {"--not-match-d=[", "."},
 		} {
 			t.Run(strings.Join(args, " "), func(t *testing.T) {
 				stdout, stderr, err := runCLI(binary, dir, args)
@@ -250,9 +268,7 @@ func TestCLIIntegration(t *testing.T) {
 			{name: "decimal leading zero", args: []string{"--workers=08", "."}},
 			{name: "interspersed", args: []string{"src", "--workers", "2", "scripts", "--sort=name"}},
 			{name: "exclude extensions", args: []string{"--exclude-ext=py,txt", "."}},
-			{name: "fullpath", args: []string{"--fullpath", `--match=^scripts[/\\]`, "."}},
 			{name: "include directory", args: []string{"--match-d=src", "."}},
-			{name: "exclude name", args: []string{`--not-match=\.py$`, "."}},
 			{name: "repeated option", args: []string{"--include-lang=Go", "--include-lang=Python", "."}},
 		}
 		for _, format := range []string{"default", "json", "cloc-xml", "markdown", "sloccount"} {

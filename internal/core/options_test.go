@@ -4,10 +4,11 @@ import (
 	"errors"
 	"io"
 	"reflect"
-	"regexp/syntax"
 	"runtime"
 	"strconv"
 	"testing"
+
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 func TestOptionsPrepareAutomaticWorkers(t *testing.T) {
@@ -78,9 +79,8 @@ func TestOptionsPrepareInvalidFields(t *testing.T) {
 				)
 			}
 			if tc.field != "Workers" {
-				var syntaxErr *syntax.Error
-				if !errors.As(err, &syntaxErr) || syntaxErr.Expr != "[" {
-					t.Fatalf("error=%v, want wrapped regex syntax error", err)
+				if !errors.Is(err, doublestar.ErrBadPattern) {
+					t.Fatalf("error=%v, want wrapped glob syntax error", err)
 				}
 			}
 		})
@@ -90,12 +90,12 @@ func TestOptionsPrepareInvalidFields(t *testing.T) {
 func TestOptionsPrepareFiltersAndOwnership(t *testing.T) {
 	t.Parallel()
 	opts := &Options{
-		Workers: 4, Dedup: true, Debug: true, Fullpath: true, Diagnostics: io.Discard,
+		Workers: 4, Dedup: true, Debug: true, Diagnostics: io.Discard,
 		ExcludeExts:  []string{"py", "py", "txt", "unknown"},
 		IncludeLangs: []string{"Python", "Go", "Go", "unknown"},
 		Exclude:      []string{"{dist,target}/", "*.min.js"},
-		Match:        `\.go$`,
-		NotMatch:     `_test\.go$`,
+		Match:        "*.go",
+		NotMatch:     "*_test.go",
 		MatchDir:     "src",
 		NotMatchDir:  "vendor",
 	}
@@ -110,7 +110,7 @@ func TestOptionsPrepareFiltersAndOwnership(t *testing.T) {
 	if !reflect.DeepEqual(*opts, before) {
 		t.Fatal("preparation mutated caller options")
 	}
-	flagsForwarded := !prepared.SkipDuplicated && prepared.Debug && prepared.Fullpath
+	flagsForwarded := !prepared.SkipDuplicated && prepared.Debug
 	if !flagsForwarded || prepared.Diagnostics != io.Discard {
 		t.Fatalf("options not forwarded: %+v", prepared)
 	}
@@ -123,8 +123,8 @@ func TestOptionsPrepareFiltersAndOwnership(t *testing.T) {
 		t.Fatalf("included=%v, want %v", prepared.IncludeLangs, wantIncluded)
 	}
 	gotPatterns := []string{
-		prepared.ReMatch.String(), prepared.ReNotMatch.String(),
-		prepared.ReMatchDir.String(), prepared.ReNotMatchDir.String(),
+		prepared.Match, prepared.NotMatch,
+		prepared.MatchDir, prepared.NotMatchDir,
 	}
 	wantPatterns := []string{opts.Match, opts.NotMatch, opts.MatchDir, opts.NotMatchDir}
 	if !reflect.DeepEqual(gotPatterns, wantPatterns) {

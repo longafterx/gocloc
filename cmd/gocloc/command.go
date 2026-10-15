@@ -24,7 +24,6 @@ type CmdOptions struct {
 	NotMatch       string
 	MatchDir       string
 	NotMatchDir    string
-	Fullpath       bool
 	Debug          bool
 	Workers        *int
 	Dedup          bool
@@ -65,6 +64,12 @@ func newRootCommand() *cobra.Command {
 
   # Exclude dependency and build directories by name
   gocloc --exclude '{dist,node_modules,target}/' .
+
+  # Include Go files and exclude tests with globs
+  gocloc --match '*.go' --not-match '*_test.go' .
+
+  # Include a directory tree and exclude generated directories
+  gocloc --match-d 'src/' --not-match-d '{dist,node_modules,target}/' .
 
   # Count only Go and Python files
   gocloc -l Go,Python .
@@ -172,31 +177,25 @@ Examples:
 		&opts.Match,
 		"match",
 		"",
-		"include file name (regex)",
+		"include files matching a glob (e.g. '*.go' or 'src/**/*.go')",
 	)
 	flags.StringVar(
 		&opts.NotMatch,
 		"not-match",
 		"",
-		"exclude file name (regex)",
+		"exclude files matching a glob (e.g. '*_test.go')",
 	)
 	flags.StringVar(
 		&opts.MatchDir,
 		"match-d",
 		"",
-		"include directory paths matching a regex (substring match)",
+		"include matching directories and their contents (glob)",
 	)
 	flags.StringVar(
 		&opts.NotMatchDir,
 		"not-match-d",
 		"",
-		"exclude directory paths matching a regex (substring match)",
-	)
-	flags.BoolVar(
-		&opts.Fullpath,
-		"fullpath",
-		false,
-		"apply match/not-match options to full file paths instead of base names",
+		"exclude matching directories and their contents (glob)",
 	)
 	flags.BoolVar(
 		&opts.Debug,
@@ -286,7 +285,6 @@ func runAnalysis(paths []string, opts CmdOptions, analysisOpts *gocloc.Options, 
 	analysisOpts.NotMatchDir = opts.NotMatchDir
 	analysisOpts.Debug = opts.Debug
 	analysisOpts.Dedup = opts.Dedup
-	analysisOpts.Fullpath = opts.Fullpath
 
 	result, err := gocloc.Analyze(paths, analysisOpts)
 	if err != nil {

@@ -3,7 +3,6 @@ package core
 import (
 	"fmt"
 	"io"
-	"regexp"
 	"runtime"
 )
 
@@ -31,18 +30,19 @@ type Options struct {
 	// slash, unanchored patterns without / match names at any depth; others match
 	// paths relative to each input root. A leading slash anchors to that root,
 	// and a trailing slash restricts matching to directories. Supports ** and
-	// {a,b}; Fullpath has no effect. See README for scan-root and escape semantics.
+	// {a,b}. See README for scan-root and escape semantics.
 	Exclude []string
 
-	// Match and NotMatch are inclusion and exclusion regexes for file base names,
-	// or full paths when Fullpath is true. Empty patterns disable the filter.
+	// Match and NotMatch include and exclude files using the same glob rules as
+	// Exclude. A trailing / is invalid for file filters. Empty patterns disable
+	// the filter; exclusions take precedence over inclusions.
 	Match    string
 	NotMatch string
-	// MatchDir and NotMatchDir match directory paths, not just directory base names.
-	// Patterns are regular expressions, not globs; empty patterns disable the filter.
+	// MatchDir and NotMatchDir include and exclude directories and their contents
+	// using globs. A trailing / is optional. MatchDir never prunes unmatched parents,
+	// so nested matches remain reachable. Empty patterns disable the filter.
 	MatchDir    string
 	NotMatchDir string
-	Fullpath    bool
 
 	// Debug logs analysis activity, including copies later excluded by Dedup.
 	// Records from different files may interleave.
@@ -67,8 +67,7 @@ type Options struct {
 }
 
 // OptionError identifies an invalid Options field. Validation happens before
-// scanning files or invoking callbacks. Unwrap exposes the underlying error,
-// including *syntax.Error for invalid regular expressions.
+// scanning files or invoking callbacks. Unwrap exposes the underlying error.
 type OptionError struct {
 	Field string
 	Err   error
@@ -101,32 +100,21 @@ func (opts *Options) prepareWithExts(languages *DefinedLanguages, exts map[strin
 		SkipDuplicated: !opts.Dedup,
 		ExcludeExts:    make(map[string]struct{}, len(opts.ExcludeExts)),
 		IncludeLangs:   make(map[string]struct{}, len(opts.IncludeLangs)),
-		Fullpath:       opts.Fullpath,
+		Match:          opts.Match,
+		NotMatch:       opts.NotMatch,
+		MatchDir:       opts.MatchDir,
+		NotMatchDir:    opts.NotMatchDir,
 		Debug:          opts.Debug,
 		Diagnostics:    opts.Diagnostics,
 		OnCode:         opts.OnCode,
 		OnBlank:        opts.OnBlank,
 		OnComment:      opts.OnComment,
 	}
-	for _, filter := range []struct {
-		field   string
-		pattern string
-		target  **regexp.Regexp
-	}{
-		{field: "Match", pattern: opts.Match, target: &prepared.ReMatch},
-		{field: "NotMatch", pattern: opts.NotMatch, target: &prepared.ReNotMatch},
-		{field: "MatchDir", pattern: opts.MatchDir, target: &prepared.ReMatchDir},
-		{field: "NotMatchDir", pattern: opts.NotMatchDir, target: &prepared.ReNotMatchDir},
-	} {
-		if filter.pattern == "" {
-			continue
-		}
-		compiled, err := regexp.Compile(filter.pattern)
-		if err != nil {
-			return nil, &OptionError{Field: filter.field, Err: err}
-		}
-		*filter.target = compiled
+	filter, err := preparePathFilter(prepared)
+	if err != nil {
+		return nil, err
 	}
+	prepared.filter = filter
 	for _, ext := range opts.ExcludeExts {
 		if language, ok := exts[ext]; ok {
 			prepared.ExcludeExts[language] = struct{}{}

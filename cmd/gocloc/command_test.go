@@ -179,10 +179,13 @@ func TestRootCommandErrors(t *testing.T) {
 		{name: "sort conflict", args: []string{"--by-file", "--sort=files", "."}, want: "cannot be used"},
 		{name: "short sort conflict", args: []string{"-f", "-s", "files", "."}, want: "cannot be used"},
 		{name: "short sort before version", args: []string{"-sunknown", "-V"}, want: "must be one of"},
-		{name: "match regex", args: []string{"--match=[", "."}, want: "invalid --match:"},
-		{name: "not-match regex", args: []string{"--not-match=[", "."}, want: "invalid --not-match:"},
-		{name: "match-d regex", args: []string{"--match-d=[", "."}, want: "invalid --match-d:"},
-		{name: "not-match-d regex", args: []string{"--not-match-d=[", "."}, want: "invalid --not-match-d:"},
+		{name: "match glob", args: []string{"--match=[", "."}, want: "invalid --match:"},
+		{name: "not-match glob", args: []string{"--not-match=[", "."}, want: "invalid --not-match:"},
+		{name: "match-d glob", args: []string{"--match-d=[", "."}, want: "invalid --match-d:"},
+		{name: "not-match-d glob", args: []string{"--not-match-d=[", "."}, want: "invalid --not-match-d:"},
+		{name: "removed fullpath", args: []string{"--fullpath", "."}, want: "unknown flag: --fullpath"},
+		{name: "file include directory", args: []string{"--match=src/", "."}, want: "invalid --match:"},
+		{name: "file exclude directory", args: []string{"--not-match=src/", "."}, want: "invalid --not-match:"},
 		{name: "exclude glob", args: []string{"--exclude=[", "."}, want: "invalid --exclude: pattern 1"},
 		{name: "empty glob", args: []string{"--exclude=", "."}, want: "invalid --exclude: pattern 1"},
 		{
@@ -323,6 +326,11 @@ func TestRootCommandHelpExamples(t *testing.T) {
 			if stderr.Len() != 0 {
 				t.Fatalf("unexpected diagnostics: %s", stderr.String())
 			}
+			for _, obsolete := range []string{"(regex)", "substring match", "--fullpath"} {
+				if strings.Contains(stdout.String(), obsolete) {
+					t.Errorf("help still advertises %q", obsolete)
+				}
+			}
 			previousSection := -1
 			for _, section := range []string{"Usage:", "Flags:", "Examples:"} {
 				position := strings.Index(stdout.String(), section)
@@ -339,6 +347,8 @@ func TestRootCommandHelpExamples(t *testing.T) {
 				"  gocloc .\n",
 				"  gocloc src tests\n",
 				"  gocloc --exclude '{dist,node_modules,target}/' .\n",
+				"  gocloc --match '*.go' --not-match '*_test.go' .\n",
+				"  gocloc --match-d 'src/' --not-match-d '{dist,node_modules,target}/' .\n",
 				"  gocloc -l Go,Python .\n",
 				"  gocloc -f -s code .\n",
 				"  gocloc -o json . > ../counts.json\n",

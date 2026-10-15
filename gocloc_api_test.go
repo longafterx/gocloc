@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp/syntax"
 	"runtime"
 	"sort"
 	"strings"
@@ -17,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/rustyllh/gocloc"
 )
 
@@ -94,7 +94,7 @@ func TestAnalyzeGlobExclusions(t *testing.T) {
 			patterns := []string{"{dist,node_modules,target}/", "*_test.go"}
 			var calls atomic.Int32
 			opts := &gocloc.Options{
-				Workers: count, Exclude: patterns, Match: `\.go$`, Fullpath: true,
+				Workers: count, Exclude: patterns, Match: "*.go",
 				OnCode: func(line string) {
 					calls.Add(1)
 					if line != "package keep" {
@@ -197,6 +197,154 @@ func TestAnalyzeGlobRoots(t *testing.T) {
 				if got := apiRelativeFiles(t, dir, result); !reflect.DeepEqual(got, tc.want) {
 					t.Fatalf("files=%q, want %q", got, tc.want)
 				}
+			}
+		})
+	}
+}
+
+func TestAnalyzeDirectoryGlobRoots(t *testing.T) {
+	t.Parallel()
+	dir := writeAPIFixture(t, map[string]string{
+		"src/main.go":             "package sample\n",
+		"src/lib/deep.go":         "package sample\n",
+		"src/target/generated.go": "package sample\n",
+		"src/target-old/keep.go":  "package sample\n",
+		"tests/main.go":           "package sample\n",
+		"tests/lib/deep.go":       "package sample\n",
+		"gcc.target/keep.go":      "package sample\n",
+		"target/generated.go":     "package sample\n",
+	})
+	src := []string{"src/lib/deep.go", "src/main.go", "src/target-old/keep.go", "src/target/generated.go"}
+	for _, tc := range []struct {
+		name  string
+		opts  gocloc.Options
+		paths []string
+		want  []string
+	}{
+		{name: "include subtree", opts: gocloc.Options{MatchDir: "src/"}, want: src},
+		{name: "anchored include subtree", opts: gocloc.Options{MatchDir: "/src/"}, want: src},
+		{
+			name: "nested directory name", opts: gocloc.Options{MatchDir: "lib"},
+			want: []string{"src/lib/deep.go", "tests/lib/deep.go"},
+		},
+		{
+			name: "nested directory path remains reachable", opts: gocloc.Options{MatchDir: "src/lib/"},
+			want: []string{"src/lib/deep.go"},
+		},
+		{
+			name: "globstar directories", opts: gocloc.Options{MatchDir: "**/lib/"},
+			want: []string{"src/lib/deep.go", "tests/lib/deep.go"},
+		},
+		{
+			name: "directory and file inclusions intersect",
+			opts: gocloc.Options{MatchDir: "{src,tests}/", Match: "main.go"},
+			want: []string{"src/main.go", "tests/main.go"},
+		},
+		{
+			name: "directory exclusion keeps partial names",
+			opts: gocloc.Options{MatchDir: "src/", NotMatchDir: "target/"},
+			want: []string{"src/lib/deep.go", "src/main.go", "src/target-old/keep.go"},
+		},
+		{
+			name: "combined exclusions win",
+			opts: gocloc.Options{
+				MatchDir: "src/", Exclude: []string{"lib/"},
+				NotMatchDir: "target/", NotMatch: "keep.go",
+			},
+			want: []string{"src/main.go"},
+		},
+		{
+			name: "exclude wins over directory inclusion",
+			opts: gocloc.Options{MatchDir: "src/", Exclude: []string{"src/"}}, want: []string{},
+		},
+		{
+			name: "input directory name included", opts: gocloc.Options{MatchDir: "src/"},
+			paths: []string{filepath.Join(dir, "src")}, want: src,
+		},
+		{
+			name: "anchored rule does not match input directory", opts: gocloc.Options{MatchDir: "/src/"},
+			paths: []string{filepath.Join(dir, "src")}, want: []string{},
+		},
+		{
+			name: "input directory name excluded", opts: gocloc.Options{NotMatchDir: "target"},
+			paths: []string{filepath.Join(dir, "target")}, want: []string{},
+		},
+		{
+			name: "anchored exclusion per root", opts: gocloc.Options{NotMatchDir: "/target/"},
+			paths: []string{filepath.Join(dir, "src")},
+			want:  []string{"src/lib/deep.go", "src/main.go", "src/target-old/keep.go"},
+		},
+		{
+			name: "outside include ancestor ignored", opts: gocloc.Options{MatchDir: "src/"},
+			paths: []string{filepath.Join(dir, "src/lib")}, want: []string{},
+		},
+		{
+			name: "outside exclude ancestor ignored", opts: gocloc.Options{NotMatchDir: "src/"},
+			paths: []string{filepath.Join(dir, "src/lib")}, want: []string{"src/lib/deep.go"},
+		},
+		{
+			name: "explicit file parent included", opts: gocloc.Options{MatchDir: "src/", Match: "/main.go"},
+			paths: []string{filepath.Join(dir, "src/main.go")}, want: []string{"src/main.go"},
+		},
+		{
+			name: "explicit file parent excluded", opts: gocloc.Options{NotMatchDir: "target/"},
+			paths: []string{filepath.Join(dir, "target/generated.go")}, want: []string{},
+		},
+		{
+			name: "explicit file outside ancestor ignored", opts: gocloc.Options{MatchDir: "src/"},
+			paths: []string{filepath.Join(dir, "src/lib/deep.go")}, want: []string{},
+		},
+		{
+			name: "independent file pattern roots", opts: gocloc.Options{Match: "lib/*.go"},
+			paths: []string{filepath.Join(dir, "src"), filepath.Join(dir, "tests")},
+			want:  []string{"src/lib/deep.go", "tests/lib/deep.go"},
+		},
+		{
+			name: "plain directory pattern does not match substrings", opts: gocloc.Options{MatchDir: "target"},
+			want: []string{"src/target/generated.go", "target/generated.go"},
+		},
+		{
+			name: "regex anchors are literal", opts: gocloc.Options{Match: "^main.go$"}, want: []string{},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			paths := tc.paths
+			if paths == nil {
+				paths = []string{dir}
+			}
+			for _, workers := range []int{1, 4} {
+				t.Run(fmt.Sprintf("workers=%d", workers), func(t *testing.T) {
+					var calls atomic.Int32
+					opts := tc.opts
+					opts.Workers = workers
+					opts.OnCode = func(string) { calls.Add(1) }
+					processorOpts := gocloc.NewClocOptions()
+					processorOpts.Workers = workers
+					processorOpts.Exclude = opts.Exclude
+					processorOpts.Match = opts.Match
+					processorOpts.NotMatch = opts.NotMatch
+					processorOpts.MatchDir = opts.MatchDir
+					processorOpts.NotMatchDir = opts.NotMatchDir
+					processorOpts.OnCode = opts.OnCode
+					for _, analyze := range []func() (*gocloc.Result, error){
+						func() (*gocloc.Result, error) { return gocloc.Analyze(paths, &opts) },
+						func() (*gocloc.Result, error) {
+							return gocloc.NewProcessor(gocloc.NewDefinedLanguages(), processorOpts).Analyze(paths)
+						},
+					} {
+						calls.Store(0)
+						result, err := analyze()
+						if err != nil {
+							t.Fatal(err)
+						}
+						if got := apiRelativeFiles(t, dir, result); !reflect.DeepEqual(got, tc.want) {
+							t.Fatalf("files=%q, want %q", got, tc.want)
+						}
+						if calls.Load() != int32(len(tc.want)) {
+							t.Fatalf("callbacks=%d, want %d", calls.Load(), len(tc.want))
+						}
+					}
+				})
 			}
 		})
 	}
@@ -338,9 +486,9 @@ func TestAnalyzeFilters(t *testing.T) {
 	}{
 		{name: "no filters", opts: gocloc.Options{}, want: all},
 		{
-			name: "glob combined with legacy filters",
+			name: "glob combined with language filters",
 			opts: gocloc.Options{
-				Exclude: []string{"src/"}, Match: `\.go$`, NotMatch: `^lib\.go$`,
+				Exclude: []string{"src/"}, Match: "*.go", NotMatch: "lib.go",
 				IncludeLangs: []string{"Go", "Python"}, ExcludeExts: []string{"txt"},
 			},
 			want: []string{"scripts/tool.go"},
@@ -361,23 +509,23 @@ func TestAnalyzeFilters(t *testing.T) {
 			opts: gocloc.Options{IncludeLangs: []string{"Go"}, ExcludeExts: []string{"go"}}, want: []string{},
 		},
 		{
-			name: "file regex",
-			opts: gocloc.Options{Match: `\.go$`, NotMatch: `_test\.go$`},
+			name: "file glob",
+			opts: gocloc.Options{Match: "*.go", NotMatch: "*_test.go"},
 			want: []string{"scripts/tool.go", "src/main.go", "vendor/lib.go"},
 		},
 		{
-			name: "directory regex",
-			opts: gocloc.Options{MatchDir: `[/\\](src|vendor)$`, NotMatchDir: `[/\\]vendor$`},
+			name: "directory glob",
+			opts: gocloc.Options{MatchDir: "{src,vendor}/", NotMatchDir: "vendor/"},
 			want: []string{"src/main.go", "src/main_test.go"},
 		},
 		{
-			name: "fullpath",
-			opts: gocloc.Options{Fullpath: true, Match: `[/\\]src[/\\]`, NotMatch: `_test\.go$`},
+			name: "relative path glob",
+			opts: gocloc.Options{Match: "src/**/*.go", NotMatch: "*_test.go"},
 			want: []string{"src/main.go"},
 		},
 		{
-			name: "base name does not include directory",
-			opts: gocloc.Options{Match: `[/\\]src[/\\]`}, want: []string{},
+			name: "whole filename without substring matching",
+			opts: gocloc.Options{Match: "main"}, want: []string{},
 		},
 		{
 			name: "multiple file and directory roots", opts: gocloc.Options{},
@@ -413,41 +561,71 @@ func TestAnalyzeFilters(t *testing.T) {
 func TestAnalyzeValidatesBeforeScanning(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name string
-		opts gocloc.Options
+		name   string
+		field  string
+		opts   gocloc.Options
+		syntax bool
 	}{
-		{name: "Workers", opts: gocloc.Options{Workers: -1}},
-		{name: "Match", opts: gocloc.Options{Match: "["}},
-		{name: "NotMatch", opts: gocloc.Options{NotMatch: "["}},
-		{name: "MatchDir", opts: gocloc.Options{MatchDir: "["}},
-		{name: "NotMatchDir", opts: gocloc.Options{NotMatchDir: "["}},
+		{name: "workers", field: "Workers", opts: gocloc.Options{Workers: -1}},
+		{name: "file include", field: "Match", opts: gocloc.Options{Match: "["}, syntax: true},
+		{name: "file exclude", field: "NotMatch", opts: gocloc.Options{NotMatch: "["}, syntax: true},
+		{name: "directory include", field: "MatchDir", opts: gocloc.Options{MatchDir: "["}, syntax: true},
+		{name: "directory exclude", field: "NotMatchDir", opts: gocloc.Options{NotMatchDir: "["}, syntax: true},
+		{name: "file include directory suffix", field: "Match", opts: gocloc.Options{Match: "src/"}},
+		{name: "file exclude directory suffix", field: "NotMatch", opts: gocloc.Options{NotMatch: "src/"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var diagnostics bytes.Buffer
 			var calls atomic.Int32
-			tc.opts.Diagnostics = &diagnostics
-			tc.opts.OnCode = func(string) { calls.Add(1) }
-			result, err := gocloc.Analyze([]string{filepath.Join(t.TempDir(), "missing")}, &tc.opts)
-			var optionErr *gocloc.OptionError
-			if !errors.As(err, &optionErr) {
-				t.Fatalf("error=%v, want OptionError", err)
+			opts := tc.opts
+			opts.Diagnostics = &diagnostics
+			opts.OnCode = func(string) { calls.Add(1) }
+			paths := []string{filepath.Join(t.TempDir(), "missing")}
+			runners := []struct {
+				name string
+				run  func() (*gocloc.Result, error)
+			}{
+				{name: "Analyze", run: func() (*gocloc.Result, error) {
+					return gocloc.Analyze(paths, &opts)
+				}},
 			}
-			if result != nil || optionErr.Field != tc.name {
-				t.Fatalf(
-					"result=%+v error=%v, want OptionError for %s",
-					result,
-					err,
-					tc.name,
-				)
+			if tc.field != "Workers" {
+				processorOpts := gocloc.NewClocOptions()
+				processorOpts.Match = opts.Match
+				processorOpts.NotMatch = opts.NotMatch
+				processorOpts.MatchDir = opts.MatchDir
+				processorOpts.NotMatchDir = opts.NotMatchDir
+				processorOpts.Diagnostics = opts.Diagnostics
+				processorOpts.OnCode = opts.OnCode
+				runners = append(runners, struct {
+					name string
+					run  func() (*gocloc.Result, error)
+				}{name: "Processor", run: func() (*gocloc.Result, error) {
+					return gocloc.NewProcessor(gocloc.NewDefinedLanguages(), processorOpts).Analyze(paths)
+				}})
 			}
-			if diagnostics.Len() != 0 || calls.Load() != 0 {
-				t.Fatal("invalid options triggered scanning or callbacks")
-			}
-			if tc.name != "Workers" {
-				var syntaxErr *syntax.Error
-				if !errors.As(err, &syntaxErr) {
-					t.Fatalf("regex error cannot be unwrapped: %v", err)
-				}
+			for _, runner := range runners {
+				t.Run(runner.name, func(t *testing.T) {
+					result, err := runner.run()
+					var optionErr *gocloc.OptionError
+					if !errors.As(err, &optionErr) {
+						t.Fatalf("error=%v, want OptionError", err)
+					}
+					if result != nil || optionErr.Field != tc.field {
+						t.Fatalf(
+							"result=%+v error=%v, want OptionError for %s",
+							result,
+							err,
+							tc.field,
+						)
+					}
+					if diagnostics.Len() != 0 || calls.Load() != 0 {
+						t.Fatal("invalid options triggered scanning or callbacks")
+					}
+					if errors.Is(err, doublestar.ErrBadPattern) != tc.syntax {
+						t.Fatalf("unexpected wrapped glob syntax error: %v", err)
+					}
+				})
 			}
 		})
 	}
@@ -554,7 +732,7 @@ func TestAnalyzeOptionsCanBeReusedConcurrently(t *testing.T) {
 	t.Parallel()
 	dir := writeAPIFixture(t, map[string]string{"main.go": "package main\n", "main.py": "print(1)\n"})
 	opts := &gocloc.Options{
-		IncludeLangs: []string{"Go"}, ExcludeExts: []string{"txt"}, Match: `\.go$`,
+		IncludeLangs: []string{"Go"}, ExcludeExts: []string{"txt"}, Match: "*.go",
 	}
 	want := *opts
 	want.IncludeLangs = append([]string{}, opts.IncludeLangs...)

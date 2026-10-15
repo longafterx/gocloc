@@ -272,14 +272,18 @@ Workers are selected automatically; use `-w 1` through `-w 64` to override.
 `-o` supports `default`, `json`, `markdown`, `cloc-xml`, and `sloccount`.
 Short and long options can be mixed; see `gocloc -h` for the full list.
 
-Use repeatable `--exclude` flags to exclude files or directories with globs. Any matching rule excludes the entry:
+All file and directory filters use globs. Use repeatable `--exclude` flags to exclude files or directories;
+any matching rule excludes the entry:
 
 ```sh
 gocloc --exclude 'target/' --exclude '*.min.js' .
 gocloc --exclude 'src/generated/' --exclude '**/vendor/' .
+gocloc --match '*.go' --not-match '*_test.go' .
+gocloc --match-d 'src/' --not-match-d '{dist,node_modules,target}/' .
+gocloc --match 'src/**/*.{go,py}' .
 ```
 
-| Pattern | Meaning |
+| Exclusion pattern | Meaning |
 | --- | --- |
 | `target/` | A directory named exactly target at any depth, including its contents; keeps gcc.target |
 | `{dist,node_modules,target}/` | Any of these three complete directory names at any depth |
@@ -290,16 +294,25 @@ gocloc --exclude 'src/generated/' --exclude '**/vendor/' .
 
 Quote patterns to prevent shell expansion. Matching is case-sensitive: `*` does not cross directories,
 while `**` matches zero or more directory levels. A trailing `/` restricts a rule to directories;
-without it, files can also match. Matching directories are pruned before visiting their contents.
+without it, `--exclude` can also match files. Excluded directories are pruned before visiting their contents.
 Each input has its own matching root. Unanchored name rules also check the input directory's own name.
 Explicit file inputs use their parent directory as the matching root and check that parent's name rules too.
-Ancestors outside the matching root are ignored; `--fullpath` has no effect on globs.
-Use `/` in patterns on every platform; backslashes escape glob characters. Empty or invalid patterns fail before scanning.
-Glob exclusions take precedence over existing inclusion filters. `!` does not re-include entries,
-and this option does not automatically read `.gitignore` files.
+Ancestors outside the matching root are ignored. Use `/` in patterns on every platform;
+backslashes escape glob characters. Invalid patterns fail before scanning.
+Exclusions take precedence over inclusions. `!` does not re-include entries,
+and filters do not automatically read `.gitignore` files.
 
-`--match`, `--not-match`, `--match-d` and `--not-match-d` retain their existing regex behavior.
-Directory regexes search directory paths for substrings; prefer `--exclude` for everyday exclusions.
+`--match` and `--not-match` filter files only; a trailing `/` is rejected.
+`--match-d` and `--not-match-d` filter directories and all their descendants; a trailing `/` is optional.
+Directory inclusion keeps traversing unmatched parents to find nested matches.
+When both file and directory inclusion filters are set, files must satisfy both.
+These four flags each accept one glob; use `{a,b}` for alternatives. Empty values disable the filter.
+`--exclude` is repeatable and rejects empty values.
+
+This replaces the former regex syntax. For example, `--match '\.go$'` becomes `--match '*.go'`,
+and `--not-match-d 'dist|node_modules|target'` becomes `--not-match-d '{dist,node_modules,target}/'`.
+`|`, `^` and `$` are ordinary characters in globs. `--fullpath` has been removed;
+use a relative path glob such as `--match 'src/**'` directly.
 `-e/--exclude-ext` continues to filter extensions.
 Keep generated reports outside the scanned tree or explicitly exclude them. `>` overwrites the destination.
 Older releases enabled deduplication by default; use `--dedup` to retain that behavior.
@@ -333,11 +346,14 @@ one worker; explicit values outside 1–64 are rejected, while zero selects auto
 An empty path list returns an empty result, not a scan of the current directory.
 
 Filters are prepared once per call. Invalid options return `*gocloc.OptionError` before
-scanning. `Options.Exclude` uses the same glob rules as the CLI; invalid globs report the `Exclude` field.
-The historical `ClocOptions.Exclude` field is also supported by `Processor.Analyze`.
+scanning. `Options.Exclude`, `Match`, `NotMatch`, `MatchDir` and `NotMatchDir` use the same
+glob rules as the CLI; errors identify the corresponding field.
+`Processor.Analyze` supports the same fields on `ClocOptions`.
 `AnalyzeFile` and `AnalyzeReader` do not apply path filters.
-File regexes use base names unless `Fullpath` is true; directory regexes always
-use directory paths. Like the CLI, `ExcludeExts` excludes the detected language associated
+The former `ClocOptions.ReMatch`, `ReNotMatch`, `ReMatchDir` and `ReNotMatchDir` fields
+have been replaced by string glob fields without the `Re` prefix. `Fullpath` has been removed
+from both option types; patterns containing `/` already match paths relative to each input root.
+Like the CLI, `ExcludeExts` excludes the detected language associated
 with each extension, including aliases. `IncludeLangs` ignores unknown names; if none of
 the supplied names are recognized, no language inclusion filter is applied.
 
@@ -391,7 +407,7 @@ Add this stage to a Declarative Pipeline running on a Unix agent with the source
 ```groovy
 stage('Count lines') {
     steps {
-        sh 'mkdir -p reports && gocloc -f -o sloccount --not-match-d=reports . > reports/sloccount.sc'
+        sh 'mkdir -p reports && gocloc -f -o sloccount --exclude=reports/ . > reports/sloccount.sc'
         sloccountPublish pattern: 'reports/sloccount.sc', encoding: 'UTF-8'
     }
 }

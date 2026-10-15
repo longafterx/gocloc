@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -266,7 +265,7 @@ func TestProcessorCallbacksFollowDeduplication(t *testing.T) {
 					var diagnostics bytes.Buffer
 					opts := &ClocOptions{
 						Workers: workers, SkipDuplicated: skip,
-						Debug: debug, Diagnostics: &diagnostics, ReNotMatch: regexp.MustCompile("^excluded"),
+						Debug: debug, Diagnostics: &diagnostics, NotMatch: "excluded*",
 						OnCode:    func(line string) { record("code", line) },
 						OnComment: func(line string) { record("comment", line) },
 						OnBlank:   func(line string) { record("blank", line) },

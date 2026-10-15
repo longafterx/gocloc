@@ -1,9 +1,6 @@
 package core
 
-import (
-	"io"
-	"regexp"
-)
+import "io"
 
 // MaxWorkers limits fixed worker configurations to a bounded resource footprint.
 const MaxWorkers = 64
@@ -21,14 +18,13 @@ type ClocOptions struct {
 	SkipDuplicated bool
 	ExcludeExts    map[string]struct{}
 	IncludeLangs   map[string]struct{}
-	// Exclude configures glob exclusions for Processor.Analyze, with the same
-	// semantics as Options.Exclude. AnalyzeFile and AnalyzeReader do not apply it.
-	Exclude       []string
-	ReNotMatch    *regexp.Regexp
-	ReMatch       *regexp.Regexp
-	ReNotMatchDir *regexp.Regexp
-	ReMatchDir    *regexp.Regexp
-	Fullpath      bool
+	// Path filters use the same glob semantics as Options. AnalyzeFile and
+	// AnalyzeReader do not apply them. Empty Match fields disable that filter.
+	Exclude     []string
+	Match       string
+	NotMatch    string
+	MatchDir    string
+	NotMatchDir string
 
 	// Workers limits concurrent file analysis and concurrent callback execution.
 	// Values <= 1 use one worker; values above MaxWorkers are capped.
@@ -41,7 +37,7 @@ type ClocOptions struct {
 	diagnostics *diagnosticSink
 	exts        map[string]string
 	extsSet     bool
-	excluder    *pathExcluder
+	filter      *pathFilter
 
 	// OnCode is triggered for each line of code.
 	// Processor.Analyze invokes callbacks in workers, never guaranteeing the

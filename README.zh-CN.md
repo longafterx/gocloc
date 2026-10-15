@@ -272,14 +272,17 @@ gocloc -h
 `-o` 支持 `default`、`json`、`markdown`、`cloc-xml` 和 `sloccount`。
 长选项与短选项可以混用，完整列表见 `gocloc -h`。
 
-使用可重复的 `--exclude` 通过 glob 排除文件或目录，多个规则取并集：
+文件和目录过滤统一使用 glob。使用可重复的 `--exclude` 排除文件或目录，多个规则取并集：
 
 ```sh
 gocloc --exclude 'target/' --exclude '*.min.js' .
 gocloc --exclude 'src/generated/' --exclude '**/vendor/' .
+gocloc --match '*.go' --not-match '*_test.go' .
+gocloc --match-d 'src/' --not-match-d '{dist,node_modules,target}/' .
+gocloc --match 'src/**/*.{go,py}' .
 ```
 
-| 模式 | 含义 |
+| 排除模式 | 含义 |
 | --- | --- |
 | `target/` | 任意层级下完整名字为 target 的目录及其内容，保留 gcc.target |
 | `{dist,node_modules,target}/` | 任意层级下这三个完整目录名 |
@@ -289,15 +292,22 @@ gocloc --exclude 'src/generated/' --exclude '**/vendor/' .
 | `**/generated/` | 任意层级的 generated 目录，包含根目录直接包含的同名目录 |
 
 模式必须加引号，避免 shell 提前展开。匹配区分大小写，`*` 不跨目录，`**` 可以匹配零层或多层目录；
-末尾 `/` 将规则限定为目录，没有末尾 `/` 时也可匹配文件。目录命中后直接停止遍历其内容。
+末尾 `/` 将规则限定为目录，没有末尾 `/` 时 `--exclude` 也可匹配文件。排除目录后直接停止遍历其内容。
 多个输入分别作为匹配根目录；不锚定的名字规则也检查输入目录自身的名字。
 显式文件使用其父目录作为匹配根目录，并检查父目录自身是否被名字规则排除。
-根目录之外的祖先不参与 glob 匹配；`--fullpath` 不影响 glob。
-模式在所有平台统一使用 `/`，反斜杠用于转义。空模式和非法模式在扫描前报错。
-glob 排除优先于现有包含规则；`!` 不表示重新包含，也不会自动读取 `.gitignore`。
+根目录之外的祖先不参与 glob 匹配。模式在所有平台统一使用 `/`，反斜杠用于转义。
+非法模式在扫描前报错。排除规则优先于包含规则；`!` 不表示重新包含，也不会自动读取 `.gitignore`。
 
-`--match`、`--not-match`、`--match-d`、`--not-match-d` 保留原有正则语义。
-其中目录参数对目录路径执行子串匹配；日常排除推荐使用 `--exclude`。
+`--match`、`--not-match` 只过滤文件，不允许以 `/` 结尾。
+`--match-d`、`--not-match-d` 过滤目录及其所有后代，末尾 `/` 可省略。
+包含目录时会继续遍历尚未匹配的父目录，以便找到深层匹配。
+同时设置文件和目录包含规则时，文件必须满足两者。
+这四个参数分别接受一个 glob，可用 `{a,b}` 表达多个备选；空值表示不启用该过滤。
+`--exclude` 可重复传入，不允许空值。
+
+这些参数不再支持原来的正则语法。例如，`--match '\.go$'` 改为 `--match '*.go'`，
+`--not-match-d 'dist|node_modules|target'` 改为 `--not-match-d '{dist,node_modules,target}/'`。
+`|`、`^`、`$` 在 glob 中是普通字符。已移除 `--fullpath`，直接使用 `--match 'src/**'` 等相对路径模式。
 `-e/--exclude-ext` 继续用于扩展名过滤。
 生成的报告应放在扫描目录之外，或显式排除。`>` 会覆盖目标文件。
 旧版本默认开启去重；如需保留旧版统计行为，请添加 `--dedup`。
@@ -331,10 +341,11 @@ worker 数量为 `runtime.GOMAXPROCS(0)`，最多 64 个。`Workers: 1` 使用�
 路径列表为空时返回空结果，不会自动扫描当前目录。
 
 过滤配置每次调用只准备一次。配置不合法时，在扫描前返回 `*gocloc.OptionError`。
-`Options.Exclude` 与 CLI 的 glob 规则相同，非法 glob 的错误字段为 `Exclude`；
-历史 `ClocOptions.Exclude` 在 `Processor.Analyze` 中也受支持。
+`Options.Exclude`、`Match`、`NotMatch`、`MatchDir`、`NotMatchDir` 与 CLI 使用相同的 glob 规则，
+非法 glob 的错误会标明对应字段。`Processor.Analyze` 同样支持 `ClocOptions` 中的这些字段。
 `AnalyzeFile` 和 `AnalyzeReader` 不执行路径过滤。
-文件正则默认匹配文件名，设置 `Fullpath` 后匹配完整路径；目录正则始终匹配目录路径。
+原 `ClocOptions.ReMatch`、`ReNotMatch`、`ReMatchDir`、`ReNotMatchDir` 已替换为去掉 `Re` 前缀的字符串 glob 字段。
+两种选项类型都已移除 `Fullpath`；包含 `/` 的模式自动相对各输入根目录匹配路径。
 与 CLI 一致，`ExcludeExts` 排除的是扩展名对应的识别语言，包括该语言的其他扩展名。
 `IncludeLangs` 会忽略未知语言名；如果传入的名称都无法识别，则不限制统计语言。
 
@@ -381,7 +392,7 @@ debug 日志仍然反映实际分析过程，包括被排除的副本。
 ```groovy
 stage('Count lines') {
     steps {
-        sh 'mkdir -p reports && gocloc -f -o sloccount --not-match-d=reports . > reports/sloccount.sc'
+        sh 'mkdir -p reports && gocloc -f -o sloccount --exclude=reports/ . > reports/sloccount.sc'
         sloccountPublish pattern: 'reports/sloccount.sc', encoding: 'UTF-8'
     }
 }
